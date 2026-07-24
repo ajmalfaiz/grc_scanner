@@ -36,7 +36,7 @@ export function createPostgresClient(values: PostgresConnectionValues) {
     idle_timeout: 5,
     max_lifetime: 60,
     connection: {
-      statement_timeout: String(STATEMENT_TIMEOUT_MS),
+      statement_timeout: STATEMENT_TIMEOUT_MS,
     },
     onnotice: () => {},
   });

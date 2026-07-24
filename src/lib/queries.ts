@@ -1,52 +1,50 @@
-import { and, desc, eq, gte, sql } from "drizzle-orm";
-import { db } from "@/db";
 import {
-  aiTools,
-  connectionEvents,
-  devices,
-  findings,
-  usageTrends,
-} from "@/db/schema";
+  store,
+  type AiTool,
+  type ApprovalStatus,
+  type Confidence,
+} from "@/lib/governance-store";
 
 export async function getOverviewStats() {
-  const [deviceStats] = await db
-    .select({
-      total: sql<number>`count(*)::int`,
-      monitored: sql<number>`count(*) filter (where ${devices.isMonitored})::int`,
-      unmonitored: sql<number>`count(*) filter (where not ${devices.isMonitored})::int`,
-    })
-    .from(devices);
+  const totalDevices = store.devices.length;
+  const monitoredDevices = store.devices.filter((d) => d.isMonitored).length;
+  const unmonitoredDevices = totalDevices - monitoredDevices;
 
-  const [activityStats] = await db
-    .select({
-      devicesWithActivity: sql<number>`count(distinct ${findings.deviceId})::int`,
-      unapprovedUsage: sql<number>`count(*) filter (where ${aiTools.approvalStatus} = 'unapproved')::int`,
-      totalFindings: sql<number>`count(*)::int`,
-    })
-    .from(findings)
-    .innerJoin(aiTools, eq(findings.toolId, aiTools.id));
+  const devicesWithActivity = new Set(store.findings.map((f) => f.deviceId))
+    .size;
+  const toolsById = new Map(store.aiTools.map((t) => [t.id, t]));
+  const unapprovedUsageCount = store.findings.filter(
+    (f) => toolsById.get(f.toolId)?.approvalStatus === "unapproved",
+  ).length;
 
   return {
-    totalDevices: deviceStats?.total ?? 0,
-    monitoredDevices: deviceStats?.monitored ?? 0,
-    unmonitoredDevices: deviceStats?.unmonitored ?? 0,
-    devicesWithActivity: activityStats?.devicesWithActivity ?? 0,
-    unapprovedUsageCount: activityStats?.unapprovedUsage ?? 0,
-    totalFindings: activityStats?.totalFindings ?? 0,
+    totalDevices,
+    monitoredDevices,
+    unmonitoredDevices,
+    devicesWithActivity,
+    unapprovedUsageCount,
+    totalFindings: store.findings.length,
   };
 }
 
 export async function getUsageByTool() {
-  return db
-    .select({
-      tool: aiTools.name,
-      vendor: aiTools.vendor,
-      connections: sql<number>`coalesce(sum(${findings.connectionCount}), 0)::int`,
-    })
-    .from(findings)
-    .innerJoin(aiTools, eq(findings.toolId, aiTools.id))
-    .groupBy(aiTools.name, aiTools.vendor)
-    .orderBy(sql`sum(${findings.connectionCount}) desc`);
+  const toolsById = new Map(store.aiTools.map((t) => [t.id, t]));
+  const totals = new Map<string, { tool: string; vendor: string; connections: number }>();
+
+  for (const finding of store.findings) {
+    const tool = toolsById.get(finding.toolId);
+    if (!tool) continue;
+    const key = `${tool.name}::${tool.vendor}`;
+    const existing = totals.get(key) ?? {
+      tool: tool.name,
+      vendor: tool.vendor,
+      connections: 0,
+    };
+    existing.connections += finding.connectionCount;
+    totals.set(key, existing);
+  }
+
+  return [...totals.values()].sort((a, b) => b.connections - a.connections);
 }
 
 export async function getUsageTrend(days = 30) {
@@ -54,11 +52,10 @@ export async function getUsageTrend(days = 30) {
   since.setDate(since.getDate() - days);
   const sinceStr = since.toISOString().slice(0, 10);
 
-  return db
-    .select()
-    .from(usageTrends)
-    .where(gte(usageTrends.day, sinceStr))
-    .orderBy(usageTrends.day);
+  return store.usageTrends
+    .filter((row) => row.day >= sinceStr)
+    .slice()
+    .sort((a, b) => a.day.localeCompare(b.day));
 }
 
 export type FindingFilters = {
@@ -69,138 +66,125 @@ export type FindingFilters = {
   to?: string;
 };
 
+function findingRows() {
+  const devicesById = new Map(store.devices.map((d) => [d.id, d]));
+  const toolsById = new Map(store.aiTools.map((t) => [t.id, t]));
+
+  return store.findings.map((finding) => {
+    const device = devicesById.get(finding.deviceId);
+    const tool = toolsById.get(finding.toolId);
+    return {
+      id: finding.id,
+      connectionCount: finding.connectionCount,
+      dataVolumeBytes: finding.dataVolumeBytes,
+      confidence: finding.confidence,
+      lastSeen: finding.lastSeen,
+      coverageNote: finding.coverageNote,
+      deviceName: device?.name ?? "Unknown",
+      employeeId: device?.employeeId ?? null,
+      department: device?.department ?? null,
+      toolName: tool?.name ?? "Unknown",
+      toolVendor: tool?.vendor ?? "Unknown",
+      domain: tool?.domain ?? "unknown",
+      approvalStatus: tool?.approvalStatus ?? ("unapproved" as ApprovalStatus),
+      toolId: finding.toolId,
+    };
+  });
+}
+
 export async function getFindings(filters: FindingFilters = {}) {
-  const conditions = [];
+  let rows = findingRows();
 
   if (filters.approval && filters.approval !== "all") {
-    conditions.push(
-      eq(
-        aiTools.approvalStatus,
-        filters.approval as "approved" | "unapproved" | "under_review",
-      ),
-    );
+    rows = rows.filter((r) => r.approvalStatus === filters.approval);
   }
-
   if (filters.confidence && filters.confidence !== "all") {
-    conditions.push(
-      eq(findings.confidence, filters.confidence as "high" | "medium"),
-    );
+    rows = rows.filter((r) => r.confidence === filters.confidence);
   }
-
   if (filters.tool && filters.tool !== "all") {
-    conditions.push(eq(aiTools.name, filters.tool));
+    rows = rows.filter((r) => r.toolName === filters.tool);
   }
-
   if (filters.from) {
-    conditions.push(gte(findings.lastSeen, new Date(filters.from)));
+    const from = new Date(filters.from);
+    rows = rows.filter((r) => r.lastSeen >= from);
   }
 
-  const rows = await db
-    .select({
-      id: findings.id,
-      connectionCount: findings.connectionCount,
-      dataVolumeBytes: findings.dataVolumeBytes,
-      confidence: findings.confidence,
-      lastSeen: findings.lastSeen,
-      coverageNote: findings.coverageNote,
-      deviceName: devices.name,
-      employeeId: devices.employeeId,
-      department: devices.department,
-      toolName: aiTools.name,
-      toolVendor: aiTools.vendor,
-      domain: aiTools.domain,
-      approvalStatus: aiTools.approvalStatus,
-      toolId: aiTools.id,
-    })
-    .from(findings)
-    .innerJoin(devices, eq(findings.deviceId, devices.id))
-    .innerJoin(aiTools, eq(findings.toolId, aiTools.id))
-    .where(conditions.length ? and(...conditions) : undefined)
-    .orderBy(
-      sql`case when ${findings.confidence} = 'high' then 0 else 1 end`,
-      desc(findings.lastSeen),
-    );
-
-  return rows;
+  return rows.sort((a, b) => {
+    const confRank = (c: Confidence) => (c === "high" ? 0 : 1);
+    const byConf = confRank(a.confidence) - confRank(b.confidence);
+    if (byConf !== 0) return byConf;
+    return b.lastSeen.getTime() - a.lastSeen.getTime();
+  });
 }
 
 export async function getFindingById(id: string) {
-  const [row] = await db
-    .select({
-      id: findings.id,
-      connectionCount: findings.connectionCount,
-      dataVolumeBytes: findings.dataVolumeBytes,
-      confidence: findings.confidence,
-      lastSeen: findings.lastSeen,
-      coverageNote: findings.coverageNote,
-      deviceName: devices.name,
-      employeeId: devices.employeeId,
-      department: devices.department,
-      toolName: aiTools.name,
-      toolVendor: aiTools.vendor,
-      domain: aiTools.domain,
-      approvalStatus: aiTools.approvalStatus,
-      toolId: aiTools.id,
-    })
-    .from(findings)
-    .innerJoin(devices, eq(findings.deviceId, devices.id))
-    .innerJoin(aiTools, eq(findings.toolId, aiTools.id))
-    .where(eq(findings.id, id))
-    .limit(1);
-
+  const row = findingRows().find((r) => r.id === id);
   if (!row) return null;
 
-  const events = await db
-    .select()
-    .from(connectionEvents)
-    .where(eq(connectionEvents.findingId, id))
-    .orderBy(desc(connectionEvents.occurredAt));
+  const events = store.connectionEvents
+    .filter((e) => e.findingId === id)
+    .slice()
+    .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime());
 
   return { ...row, events };
 }
 
 export async function getToolNames() {
-  const rows = await db
-    .selectDistinct({ name: aiTools.name })
-    .from(aiTools)
-    .orderBy(aiTools.name);
-  return rows.map((r) => r.name);
+  return [...new Set(store.aiTools.map((t) => t.name))].sort((a, b) =>
+    a.localeCompare(b),
+  );
 }
 
 export async function getAiTools() {
-  return db.select().from(aiTools).orderBy(aiTools.name);
+  return store.aiTools
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function getUnmonitoredDevices() {
-  return db
-    .select()
-    .from(devices)
-    .where(eq(devices.isMonitored, false))
-    .orderBy(devices.name);
+  return store.devices
+    .filter((d) => !d.isMonitored)
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function updateToolApproval(
   toolId: string,
-  status: "approved" | "unapproved" | "under_review",
+  status: ApprovalStatus,
 ) {
-  const [updated] = await db
-    .update(aiTools)
-    .set({ approvalStatus: status })
-    .where(eq(aiTools.id, toolId))
-    .returning();
-  return updated;
+  const tool = store.aiTools.find((t) => t.id === toolId);
+  if (!tool) return undefined;
+  tool.approvalStatus = status;
+  return tool;
 }
 
 export async function addAiTool(input: {
   name: string;
   vendor: string;
   domain: string;
-  approvalStatus: "approved" | "unapproved" | "under_review";
-}) {
-  const [created] = await db.insert(aiTools).values(input).returning();
+  approvalStatus: ApprovalStatus;
+}): Promise<AiTool> {
+  if (store.aiTools.some((t) => t.domain === input.domain)) {
+    throw new Error("duplicate");
+  }
+
+  const created: AiTool = {
+    id: `tool-${crypto.randomUUID()}`,
+    name: input.name,
+    vendor: input.vendor,
+    domain: input.domain,
+    approvalStatus: input.approvalStatus,
+    createdAt: new Date(),
+  };
+  store.aiTools.push(created);
   return created;
 }
 
 export async function removeAiTool(toolId: string) {
-  await db.delete(aiTools).where(eq(aiTools.id, toolId));
+  if (store.findings.some((f) => f.toolId === toolId)) {
+    throw new Error("referenced");
+  }
+  const index = store.aiTools.findIndex((t) => t.id === toolId);
+  if (index === -1) return;
+  store.aiTools.splice(index, 1);
 }
