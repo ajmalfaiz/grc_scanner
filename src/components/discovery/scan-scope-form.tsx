@@ -9,6 +9,7 @@ import { DiscoveryFieldControl } from "@/components/discovery/discovery-field-co
 import { ScanningScreen } from "@/components/discovery/scanning-screen";
 import { Button } from "@/components/ui/button";
 import { runDiscoveryScan } from "@/lib/discovery-scan-client";
+import { supportsLiveDiscovery } from "@/lib/discovery/live";
 import {
   buildScopeInitialValues,
   coverageModeOptions,
@@ -117,7 +118,7 @@ export function ScanScopeForm({
     try {
       let lastScanResult = undefined;
 
-      if (connectorId === "postgres") {
+      if (supportsLiveDiscovery(connectorId)) {
         lastScanResult = await runDiscoveryScan({
           connectorId,
           connectionValues: nextConnectionValues,

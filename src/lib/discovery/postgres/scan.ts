@@ -14,7 +14,7 @@ import {
 import {
   detectPiiInValuesDetailed,
   type DetectionAggregate,
-} from "@/lib/discovery/postgres/pii-detectors";
+} from "@/lib/discovery/pii-detectors";
 import { sampleTableRowsWithMetadata } from "@/lib/discovery/postgres/sample";
 import type {
   ColumnCatalog,

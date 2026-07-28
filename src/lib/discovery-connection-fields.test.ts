@@ -78,12 +78,24 @@ describe("discovery connection fields", () => {
 
     const visible = getVisibleFields(fields, values).map((f) => f.name);
     expect(visible).toContain("shareName");
+    expect(visible).toContain("password");
     expect(visible).not.toContain("port");
+    expect(visible).not.toContain("authMethod");
+    expect(visible).not.toContain("privateKey");
 
     values.protocol = "sftp";
     const sftpVisible = getVisibleFields(fields, values).map((f) => f.name);
     expect(sftpVisible).toContain("port");
+    expect(sftpVisible).toContain("authMethod");
+    expect(sftpVisible).toContain("password");
     expect(sftpVisible).not.toContain("shareName");
+    expect(sftpVisible).not.toContain("privateKey");
+
+    values.authMethod = "privateKey";
+    const keyVisible = getVisibleFields(fields, values).map((f) => f.name);
+    expect(keyVisible).toContain("privateKey");
+    expect(keyVisible).toContain("passphrase");
+    expect(keyVisible).not.toContain("password");
   });
 
   it("switches SaaS fields between HubSpot and Zoho", () => {

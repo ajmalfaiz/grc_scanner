@@ -1,4 +1,5 @@
 import type { ConnectorId, Finding } from "@/lib/discovery-mock-data";
+import { supportsLiveDiscovery } from "@/lib/discovery/live";
 import type { SavedScanResult } from "@/lib/saved-connections";
 
 export type DiscoveryScanResponse = SavedScanResult;
@@ -7,6 +8,7 @@ export type DiscoveryConnectionTestResponse = {
   ok: true;
   serverVersion: string;
   message: string;
+  details?: Record<string, string>;
 };
 
 export type DiscoveryDatabasesResponse = {
@@ -15,17 +17,29 @@ export type DiscoveryDatabasesResponse = {
   message: string;
 };
 
+function scanApiPath(connectorId: ConnectorId): string {
+  if (connectorId === "postgres") return "/api/discovery/postgres/scan";
+  if (connectorId === "file-server") return "/api/discovery/file-server/scan";
+  throw new Error(`Live scan is not implemented for ${connectorId}`);
+}
+
+function testApiPath(connectorId: ConnectorId): string {
+  if (connectorId === "postgres") return "/api/discovery/postgres/test";
+  if (connectorId === "file-server") return "/api/discovery/file-server/test";
+  throw new Error(`Connection test is not implemented for ${connectorId}`);
+}
+
 export async function testDiscoveryConnection(input: {
   connectorId: ConnectorId;
   connectionValues: Record<string, string>;
 }): Promise<DiscoveryConnectionTestResponse> {
-  if (input.connectorId !== "postgres") {
+  if (!supportsLiveDiscovery(input.connectorId)) {
     throw new Error(
       `Connection test is not implemented for ${input.connectorId}`,
     );
   }
 
-  const res = await fetch("/api/discovery/postgres/test", {
+  const res = await fetch(testApiPath(input.connectorId), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -38,6 +52,7 @@ export async function testDiscoveryConnection(input: {
     error?: string;
     serverVersion?: string;
     message?: string;
+    details?: Record<string, string>;
   };
 
   if (!res.ok || !data.ok) {
@@ -49,7 +64,8 @@ export async function testDiscoveryConnection(input: {
     serverVersion: data.serverVersion ?? "unknown",
     message:
       data.message ??
-      `Connected successfully (PostgreSQL ${data.serverVersion ?? "unknown"})`,
+      `Connected successfully (${data.serverVersion ?? "unknown"})`,
+    details: data.details,
   };
 }
 
@@ -94,11 +110,11 @@ export async function runDiscoveryScan(input: {
   connectionValues: Record<string, string>;
   scopeValues: Record<string, string>;
 }): Promise<DiscoveryScanResponse> {
-  if (input.connectorId !== "postgres") {
+  if (!supportsLiveDiscovery(input.connectorId)) {
     throw new Error(`Live scan is not implemented for ${input.connectorId}`);
   }
 
-  const res = await fetch("/api/discovery/postgres/scan", {
+  const res = await fetch(scanApiPath(input.connectorId), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

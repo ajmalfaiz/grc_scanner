@@ -18,6 +18,7 @@ import { ScanFindings } from "@/components/discovery/scan-findings";
 import { ScanningScreen } from "@/components/discovery/scanning-screen";
 import { Button } from "@/components/ui/button";
 import { runDiscoveryScan } from "@/lib/discovery-scan-client";
+import { supportsLiveDiscovery } from "@/lib/discovery/live";
 import {
   getScanResult,
   type ConnectorScanResult,
@@ -126,12 +127,12 @@ export function SavedConnectionWorkspace({
     window.setTimeout(() => setRescanFlash(false), 2500);
   }
 
-  async function runPostgresRescan(
+  async function runLiveRescan(
     connection: SavedConnection,
     connectionValues: Record<string, string>,
   ): Promise<SavedScanResult> {
     return runDiscoveryScan({
-      connectorId: "postgres",
+      connectorId: connection.connectorId,
       connectionValues,
       scopeValues: connection.scopeValues,
     });
@@ -145,9 +146,9 @@ export function SavedConnectionWorkspace({
     setScanError(null);
 
     try {
-      if (connection.connectorId === "postgres") {
+      if (supportsLiveDiscovery(connection.connectorId)) {
         const values = connectionValues ?? connection.connectionValues;
-        const lastScanResult = await runPostgresRescan(connection, values);
+        const lastScanResult = await runLiveRescan(connection, values);
         touchSavedConnection(connection.id, lastScanResult);
       } else {
         touchSavedConnection(connection.id);
@@ -161,7 +162,7 @@ export function SavedConnectionWorkspace({
   }
 
   function requestRescan() {
-    if (saved!.connectorId === "postgres") {
+    if (supportsLiveDiscovery(saved!.connectorId)) {
       if (hasUsableStoredSecrets(saved!)) {
         void finishRescan(saved!);
         return;
@@ -273,7 +274,7 @@ export function SavedConnectionWorkspace({
         saved={saved}
         onSaved={(next, wantRescan, scanConnectionValues) => {
           if (!wantRescan) return;
-          if (next.connectorId === "postgres") {
+          if (supportsLiveDiscovery(next.connectorId)) {
             void finishRescan(
               next,
               scanConnectionValues ?? next.connectionValues,

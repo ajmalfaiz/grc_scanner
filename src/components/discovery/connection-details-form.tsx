@@ -25,6 +25,7 @@ import {
   getScanResult,
   type ConnectorId,
 } from "@/lib/discovery-mock-data";
+import { supportsLiveDiscovery } from "@/lib/discovery/live";
 import { normalizePostgresConnectionValues } from "@/lib/discovery/postgres/connection-values";
 import { parseDatabaseList } from "@/lib/discovery/postgres/databases";
 import {
@@ -108,7 +109,7 @@ export function ConnectionDetailsForm({
     (field) =>
       connectorId !== "postgres" || !POSTGRES_PICKER_FIELDS.has(field.name),
   );
-  const supportsLiveTest = connectorId === "postgres";
+  const supportsLiveTest = supportsLiveDiscovery(connectorId);
   const authReady = authFieldsReady(connectorId, values);
   const databaseReady =
     connectorId !== "postgres" ||
@@ -121,7 +122,7 @@ export function ConnectionDetailsForm({
     }) && databaseReady;
   const canTest = supportsLiveTest && canSubmit && !testing && !loadingDatabases;
   const canLoadDatabases =
-    supportsLiveTest &&
+    connectorId === "postgres" &&
     authReady &&
     values.connectionMode !== "connectionString" &&
     !loadingDatabases &&
@@ -285,7 +286,8 @@ export function ConnectionDetailsForm({
             />
           ))}
 
-          {supportsLiveTest && values.connectionMode !== "connectionString" ? (
+          {connectorId === "postgres" &&
+          values.connectionMode !== "connectionString" ? (
             <PostgresDatabasePicker
               values={values}
               availableDatabases={availableDatabases}

@@ -87,4 +87,41 @@ describe("ScanScopeForm", () => {
       screen.getByText(/opening a read-only connection/i),
     ).toBeInTheDocument();
   });
+
+  it("runs a live file-server scan", async () => {
+    const user = userEvent.setup();
+    saveDiscoveryDraft({
+      connectorId: "file-server",
+      connectionValues: {
+        protocol: "sftp",
+        host: "files.local",
+        port: "22",
+        username: "svc",
+        password: "secret",
+        basePath: "/shared",
+      },
+    });
+    vi.mocked(runDiscoveryScan).mockResolvedValue({
+      ...scanResult,
+      scopeLabel: "Files inventoried",
+      findings: [
+        {
+          location: "/shared/hr/employees.csv",
+          piiType: "Email",
+          confidence: "high",
+          detectedVia: "content_sample",
+        },
+      ],
+    });
+
+    render(<ScanScopeForm connectorId="file-server" />);
+    await user.click(screen.getByRole("button", { name: /run scan & save/i }));
+
+    await waitFor(() => {
+      expect(runDiscoveryScan).toHaveBeenCalledWith(
+        expect.objectContaining({ connectorId: "file-server" }),
+      );
+    });
+    expect(listSavedConnections()[0]?.connectorId).toBe("file-server");
+  });
 });

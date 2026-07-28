@@ -19,6 +19,7 @@ export const SECRET_FIELD_NAMES = new Set([
   "connectionString",
   "password",
   "privateKey",
+  "passphrase",
   "accessToken",
   "clientSecret",
   "refreshToken",

@@ -437,13 +437,20 @@ export const scopeFieldsByConnector: Record<ConnectorId, ScopeField[]> = {
       label: "File types",
       type: "select",
       required: true,
-      defaultValue: "office_text",
+      defaultValue: "all",
       options: [
-        { value: "office_text", label: "CSV, XLSX, PDF, DOCX, TXT" },
-        { value: "spreadsheets", label: "CSV, XLSX only" },
-        { value: "all", label: "All readable types" },
+        {
+          value: "all",
+          label: "All possible PII sources (recommended)",
+        },
+        {
+          value: "office_text",
+          label: "Documents & dumps (CSV, SQL, PDF, DOCX, JSON…)",
+        },
+        { value: "spreadsheets", label: "Spreadsheets only (CSV, XLSX)" },
       ],
       fullWidth: true,
+      hint: "All mode tries every non-archive/non-media file as text so SQL dumps and unnamed exports are not skipped",
     },
     {
       name: "maxFileSizeMb",
