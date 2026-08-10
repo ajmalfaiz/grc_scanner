@@ -5,11 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Loader2, PlugZap } from "lucide-react";
 
+import { DatabasePicker, isDatabaseSelectionReady } from "@/components/discovery/database-picker";
 import { DiscoveryFieldControl } from "@/components/discovery/discovery-field-control";
-import {
-  isPostgresDatabaseSelectionReady,
-  PostgresDatabasePicker,
-} from "@/components/discovery/postgres-database-picker";
 import { RememberSecretsConsent } from "@/components/discovery/remember-secrets-consent";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,15 +22,15 @@ import {
   getScanResult,
   type ConnectorId,
 } from "@/lib/discovery-mock-data";
-import { supportsLiveDiscovery } from "@/lib/discovery/live";
+import { supportsDatabasePicker, supportsLiveDiscovery } from "@/lib/discovery/live";
 import { normalizePostgresConnectionValues } from "@/lib/discovery/postgres/connection-values";
-import { parseDatabaseList } from "@/lib/discovery/postgres/databases";
+import { parseDatabaseList } from "@/lib/discovery/shared/database-selection";
 import {
   getSavedConnection,
   saveDiscoveryDraft,
 } from "@/lib/saved-connections";
 
-const POSTGRES_PICKER_FIELDS = new Set([
+const DATABASE_PICKER_FIELDS = new Set([
   "databaseMode",
   "databases",
   "database",
@@ -62,7 +59,7 @@ function authFieldsReady(
   connectorId: ConnectorId,
   values: Record<string, string>,
 ): boolean {
-  if (connectorId !== "postgres") return true;
+  if (!supportsDatabasePicker(connectorId)) return true;
   if (values.connectionMode === "connectionString") {
     return (values.connectionString ?? "").trim().length > 0;
   }
@@ -105,16 +102,17 @@ export function ConnectionDetailsForm({
   if (!result) return null;
 
   const Icon = result.icon;
+  const showDatabasePicker =
+    supportsDatabasePicker(connectorId) && values.connectionMode !== "connectionString";
   const visible = getVisibleFields(fields, values).filter(
-    (field) =>
-      connectorId !== "postgres" || !POSTGRES_PICKER_FIELDS.has(field.name),
+    (field) => !showDatabasePicker || !DATABASE_PICKER_FIELDS.has(field.name),
   );
   const supportsLiveTest = supportsLiveDiscovery(connectorId);
   const authReady = authFieldsReady(connectorId, values);
   const databaseReady =
-    connectorId !== "postgres" ||
+    !supportsDatabasePicker(connectorId) ||
     values.connectionMode === "connectionString" ||
-    isPostgresDatabaseSelectionReady(values);
+    isDatabaseSelectionReady(values);
   const canSubmit =
     visible.every((field) => {
       if (!field.required) return true;
@@ -122,11 +120,7 @@ export function ConnectionDetailsForm({
     }) && databaseReady;
   const canTest = supportsLiveTest && canSubmit && !testing && !loadingDatabases;
   const canLoadDatabases =
-    connectorId === "postgres" &&
-    authReady &&
-    values.connectionMode !== "connectionString" &&
-    !loadingDatabases &&
-    !testing;
+    showDatabasePicker && authReady && !loadingDatabases && !testing;
 
   function setValue(name: string, value: string) {
     setValues((prev) => ({ ...prev, [name]: value }));
@@ -164,7 +158,7 @@ export function ConnectionDetailsForm({
         patchValues({
           databaseMode: "all",
           databases: result.databases.join(", "),
-          database: result.databases[0] ?? values.database ?? "postgres",
+          database: result.databases[0] ?? values.database ?? "",
         });
       } else if (!parseDatabaseList(values.databases).length) {
         const preferred =
@@ -255,7 +249,9 @@ export function ConnectionDetailsForm({
               <p className="text-xs text-muted-foreground">
                 {activeSavedId
                   ? "Update connection details. Re-enter secrets unless you previously chose to save them."
-                  : "Enter host and credentials, then choose which databases to analyse."}
+                  : supportsDatabasePicker(connectorId)
+                    ? "Enter host and credentials, then choose which databases to analyse."
+                    : "Enter connection details for a real, reachable source. Nothing is scanned until you continue."}
               </p>
             </div>
           </div>
@@ -286,9 +282,8 @@ export function ConnectionDetailsForm({
             />
           ))}
 
-          {connectorId === "postgres" &&
-          values.connectionMode !== "connectionString" ? (
-            <PostgresDatabasePicker
+          {showDatabasePicker ? (
+            <DatabasePicker
               values={values}
               availableDatabases={availableDatabases}
               loading={loadingDatabases}

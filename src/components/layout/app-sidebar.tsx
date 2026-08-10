@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bookmark, ScanSearch } from "lucide-react";
+import { Bookmark, Clock, ScanSearch } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -20,6 +20,7 @@ import {
 const discoveryNav = [
   { href: "/discovery", label: "Data discovery", icon: ScanSearch },
   { href: "/discovery/saved", label: "Saved connections", icon: Bookmark },
+  { href: "/discovery/schedules", label: "Scheduled scans", icon: Clock },
 ];
 
 function isNavActive(href: string, pathname: string) {
@@ -77,7 +78,7 @@ export function AppSidebar() {
               Jethur
             </p>
             <p className="truncate font-heading text-sm font-semibold">
-              AI Governance
+              Data Scanner
             </p>
           </div>
         </div>

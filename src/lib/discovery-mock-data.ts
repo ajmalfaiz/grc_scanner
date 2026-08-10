@@ -1,13 +1,10 @@
 import type { LucideIcon } from "lucide-react";
 import {
   Archive,
-  Briefcase,
   Cloud,
   Database,
-  FileText,
   FolderOpen,
   HardDrive,
-  Laptop,
   Mail,
   Server,
 } from "lucide-react";
@@ -118,7 +115,9 @@ export type ConnectorId =
   | "mongodb"
   | "file-server"
   | "server"
-  | "saas";
+  | "saas"
+  | "email"
+  | "backups";
 
 export type Finding = {
   location: string;
@@ -195,53 +194,34 @@ export const connectorCards: ConnectorCard[] = [
   {
     id: "server",
     name: "Server",
-    description: "Log and config files",
+    description: "Log and config files (SSH)",
     icon: Server,
     enabled: true,
     scanId: "server",
   },
   {
     id: "saas",
-    name: "Zoho / HubSpot",
-    description: "Third-party SaaS",
+    name: "SaaS / business app",
+    description: "Any REST API app — add more over time",
     icon: Cloud,
     enabled: true,
     scanId: "saas",
   },
   {
-    id: "business-apps",
-    name: "Business apps",
-    description: "Coming later",
-    icon: Briefcase,
-    enabled: false,
-  },
-  {
-    id: "endpoints",
-    name: "Endpoints",
-    description: "Personal laptops",
-    icon: Laptop,
-    enabled: false,
-  },
-  {
-    id: "email-chat",
-    name: "Email / chat",
-    description: "Coming later",
+    id: "email",
+    name: "Email",
+    description: "IMAP mailboxes",
     icon: Mail,
-    enabled: false,
+    enabled: true,
+    scanId: "email",
   },
   {
     id: "backups",
     name: "Backups and archives",
-    description: "Coming later",
+    description: "Zip/tar archives on local/SFTP/SMB",
     icon: Archive,
-    enabled: false,
-  },
-  {
-    id: "paper",
-    name: "Paper records",
-    description: "Coming later",
-    icon: FileText,
-    enabled: false,
+    enabled: true,
+    scanId: "backups",
   },
 ];
 
@@ -251,6 +231,8 @@ export const detectionMethodLabels: Record<DetectionMethod, string> = {
   both: "Name + content",
 };
 
+const NO_SCAN_YET = "No scan results yet — run a live scan.";
+
 export const scanResults: Record<ConnectorId, ConnectorScanResult> = {
   postgres: {
     id: "postgres",
@@ -258,9 +240,9 @@ export const scanResults: Record<ConnectorId, ConnectorScanResult> = {
     icon: Database,
     scopeLabel: "Tables catalogued",
     scopeValue: 0,
-    coverageLine: "No scan results yet — run a live Postgres scan.",
+    coverageLine: NO_SCAN_YET,
     methodNote:
-      "Postgres findings are produced only by the live scanner. Types and locations only; no cell values stored.",
+      "Findings are produced only by the live scanner. Types and locations only; no cell values stored.",
     findings: [],
   },
   mysql: {
@@ -268,222 +250,77 @@ export const scanResults: Record<ConnectorId, ConnectorScanResult> = {
     name: "MySQL",
     icon: Database,
     scopeLabel: "Tables catalogued",
-    scopeValue: 9,
-    coverageLine: "1 of 10 tables not sampled — access revoked",
+    scopeValue: 0,
+    coverageLine: NO_SCAN_YET,
     methodNote:
-      "Catalogued columns → name triage → sampled rows → local detectors. Types only.",
-    findings: [
-      {
-        location: "users.profile.govt_id",
-        piiType: "Aadhaar",
-        confidence: "high",
-        detectedVia: "both",
-      },
-      {
-        location: "users.profile.tax_id",
-        piiType: "PAN",
-        confidence: "high",
-        detectedVia: "both",
-      },
-      {
-        location: "billing.invoices.customer_email",
-        piiType: "Email",
-        confidence: "high",
-        detectedVia: "both",
-      },
-      {
-        location: "billing.invoices.phone",
-        piiType: "Phone number",
-        confidence: "high",
-        detectedVia: "both",
-      },
-      {
-        location: "legacy.customer_dump.address_line",
-        piiType: "Physical address",
-        confidence: "medium",
-        detectedVia: "content_sample",
-      },
-    ],
+      "Findings are produced only by the live scanner. Types and locations only; no cell values stored.",
+    findings: [],
   },
   mongodb: {
     id: "mongodb",
     name: "MongoDB",
     icon: HardDrive,
     scopeLabel: "Collections catalogued",
-    scopeValue: 7,
-    coverageLine: "0 of 7 collections not sampled — full coverage",
+    scopeValue: 0,
+    coverageLine: NO_SCAN_YET,
     methodNote:
-      "Field-path catalog → name triage → document sample → local detectors.",
-    findings: [
-      {
-        location: "customers.documents.aadhaar",
-        piiType: "Aadhaar",
-        confidence: "high",
-        detectedVia: "both",
-      },
-      {
-        location: "customers.documents.pan",
-        piiType: "PAN",
-        confidence: "high",
-        detectedVia: "both",
-      },
-      {
-        location: "sessions.events.email",
-        piiType: "Email",
-        confidence: "high",
-        detectedVia: "both",
-      },
-      {
-        location: "kyc.uploads.phone",
-        piiType: "Phone number",
-        confidence: "medium",
-        detectedVia: "name_triage",
-      },
-      {
-        location: "support.threads.body",
-        piiType: "Email",
-        confidence: "medium",
-        detectedVia: "content_sample",
-      },
-    ],
+      "Findings are produced only by the live scanner. Types and locations only; no document values stored.",
+    findings: [],
   },
   "file-server": {
     id: "file-server",
     name: "File server",
     icon: FolderOpen,
     scopeLabel: "Files inventoried",
-    scopeValue: 37,
-    coverageLine: "3 of 40 files not scanned — encrypted",
+    scopeValue: 0,
+    coverageLine: NO_SCAN_YET,
     methodNote:
-      "Share inventory → type/size triage → text extract sample → local detectors.",
-    findings: [
-      {
-        location: "/shares/hr/onboarding/employee-master.xlsx",
-        piiType: "Aadhaar",
-        confidence: "high",
-        detectedVia: "content_sample",
-      },
-      {
-        location: "/shares/hr/onboarding/employee-master.xlsx",
-        piiType: "PAN",
-        confidence: "high",
-        detectedVia: "content_sample",
-      },
-      {
-        location: "/shares/finance/vendor-list-2025.csv",
-        piiType: "Bank account number",
-        confidence: "high",
-        detectedVia: "content_sample",
-      },
-      {
-        location: "/shares/ops/customer-export.csv",
-        piiType: "Email",
-        confidence: "high",
-        detectedVia: "content_sample",
-      },
-      {
-        location: "/shares/ops/customer-export.csv",
-        piiType: "Phone number",
-        confidence: "medium",
-        detectedVia: "content_sample",
-      },
-      {
-        location: "/shares/legal/contractor-ids.pdf",
-        piiType: "Aadhaar",
-        confidence: "medium",
-        detectedVia: "content_sample",
-      },
-    ],
+      "Findings are produced only by the live scanner. Types and locations only; no file contents stored.",
+    findings: [],
   },
   server: {
     id: "server",
     name: "Server",
     icon: Server,
     scopeLabel: "Files inventoried",
-    scopeValue: 18,
-    coverageLine: "4 of 22 files not scanned — permission denied",
+    scopeValue: 0,
+    coverageLine: NO_SCAN_YET,
     methodNote:
-      "Path inventory → extension filter → line-window sample → local detectors.",
-    findings: [
-      {
-        location: "/var/log/app/auth.log",
-        piiType: "Email",
-        confidence: "high",
-        detectedVia: "content_sample",
-      },
-      {
-        location: "/var/log/app/auth.log",
-        piiType: "Phone number",
-        confidence: "medium",
-        detectedVia: "content_sample",
-      },
-      {
-        location: "/etc/app/config.env",
-        piiType: "Email",
-        confidence: "high",
-        detectedVia: "content_sample",
-      },
-      {
-        location: "/opt/batch/exports/daily-users.json",
-        piiType: "PAN",
-        confidence: "high",
-        detectedVia: "both",
-      },
-      {
-        location: "/opt/batch/exports/daily-users.json",
-        piiType: "Aadhaar",
-        confidence: "medium",
-        detectedVia: "content_sample",
-      },
-    ],
+      "Findings are produced only by the live scanner. Types and locations only; no file contents stored.",
+    findings: [],
   },
   saas: {
     id: "saas",
-    name: "Zoho / HubSpot",
+    name: "SaaS / business app",
     icon: Cloud,
     scopeLabel: "Objects catalogued",
-    scopeValue: 24,
-    coverageLine: "2 of 26 objects not scanned — API scope limited",
+    scopeValue: 0,
+    coverageLine: NO_SCAN_YET,
     methodNote:
-      "API schema catalog → property triage → object sample → local detectors.",
-    findings: [
-      {
-        location: "Contact.Email",
-        piiType: "Email",
-        confidence: "high",
-        detectedVia: "both",
-      },
-      {
-        location: "Contact.Phone",
-        piiType: "Phone number",
-        confidence: "high",
-        detectedVia: "both",
-      },
-      {
-        location: "Deal.Custom_Aadhaar",
-        piiType: "Aadhaar",
-        confidence: "medium",
-        detectedVia: "name_triage",
-      },
-      {
-        location: "Company.BillingEmail",
-        piiType: "Email",
-        confidence: "high",
-        detectedVia: "both",
-      },
-      {
-        location: "Ticket.RequesterPhone",
-        piiType: "Phone number",
-        confidence: "medium",
-        detectedVia: "name_triage",
-      },
-      {
-        location: "Contact.PAN_Field",
-        piiType: "PAN",
-        confidence: "high",
-        detectedVia: "both",
-      },
-    ],
+      "Findings are produced only by the live scanner. Types and locations only; no object values stored.",
+    findings: [],
+  },
+  email: {
+    id: "email",
+    name: "Email",
+    icon: Mail,
+    scopeLabel: "Mailboxes catalogued",
+    scopeValue: 0,
+    coverageLine: NO_SCAN_YET,
+    methodNote:
+      "Findings are produced only by the live scanner. Types and locations only; no message contents stored.",
+    findings: [],
+  },
+  backups: {
+    id: "backups",
+    name: "Backups and archives",
+    icon: Archive,
+    scopeLabel: "Archives inventoried",
+    scopeValue: 0,
+    coverageLine: NO_SCAN_YET,
+    methodNote:
+      "Findings are produced only by the live scanner. Types and locations only; no archive contents stored.",
+    findings: [],
   },
 };
 

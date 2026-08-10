@@ -2,11 +2,8 @@
 
 import { useMemo, useState } from "react";
 
+import { DatabasePicker, isDatabaseSelectionReady } from "@/components/discovery/database-picker";
 import { DiscoveryFieldControl } from "@/components/discovery/discovery-field-control";
-import {
-  isPostgresDatabaseSelectionReady,
-  PostgresDatabasePicker,
-} from "@/components/discovery/postgres-database-picker";
 import { RememberSecretsConsent } from "@/components/discovery/remember-secrets-consent";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,7 +21,8 @@ import {
 } from "@/lib/discovery-connection-fields";
 import { listDiscoveryDatabases } from "@/lib/discovery-scan-client";
 import type { ConnectorId } from "@/lib/discovery-mock-data";
-import { parseDatabaseList } from "@/lib/discovery/postgres/databases";
+import { supportsDatabasePicker, supportsLiveDiscovery } from "@/lib/discovery/live";
+import { parseDatabaseList } from "@/lib/discovery/shared/database-selection";
 import {
   SECRET_FIELD_NAMES,
   areSecretsFilled,
@@ -32,7 +30,7 @@ import {
   updateSavedConnection,
 } from "@/lib/saved-connections";
 
-const POSTGRES_PICKER_FIELDS = new Set([
+const DATABASE_PICKER_FIELDS = new Set([
   "databaseMode",
   "databases",
   "database",
@@ -84,12 +82,11 @@ export function EditConnectionSheet({
 
   const fields = seeded.fields;
   const connectorId = saved.connectorId as ConnectorId;
-  const visible = getVisibleFields(fields, values).filter(
-    (field) =>
-      connectorId !== "postgres" || !POSTGRES_PICKER_FIELDS.has(field.name),
-  );
   const showDatabasePicker =
-    connectorId === "postgres" && values.connectionMode !== "connectionString";
+    supportsDatabasePicker(connectorId) && values.connectionMode !== "connectionString";
+  const visible = getVisibleFields(fields, values).filter(
+    (field) => !showDatabasePicker || !DATABASE_PICKER_FIELDS.has(field.name),
+  );
 
   function nonSecretFieldsReady() {
     const baseReady = visible.every((field) => {
@@ -99,7 +96,7 @@ export function EditConnectionSheet({
     });
     if (!baseReady) return false;
     if (!showDatabasePicker) return true;
-    return isPostgresDatabaseSelectionReady(values);
+    return isDatabaseSelectionReady(values);
   }
 
   const canSave =
@@ -139,7 +136,7 @@ export function EditConnectionSheet({
         patchValues({
           databaseMode: "all",
           databases: result.databases.join(", "),
-          database: result.databases[0] ?? values.database ?? "postgres",
+          database: result.databases[0] ?? values.database ?? "",
         });
       } else if (!parseDatabaseList(values.databases).length) {
         const preferred =
@@ -171,8 +168,9 @@ export function EditConnectionSheet({
       id: saved.id,
       connectionValues: values,
       storeSecrets,
-      // Parent runs the live scan for postgres; avoid double timestamp update.
-      touchScan: wantRescan && saved.connectorId !== "postgres",
+      // Parent runs the live scan for every live connector; avoid a double
+      // lastScannedAt update — it gets set again once that scan completes.
+      touchScan: wantRescan && !supportsLiveDiscovery(connectorId),
     });
     if (!next) return;
     onSaved(next, wantRescan, wantRescan ? values : undefined);
@@ -223,7 +221,7 @@ export function EditConnectionSheet({
             })}
 
             {showDatabasePicker ? (
-              <PostgresDatabasePicker
+              <DatabasePicker
                 values={values}
                 availableDatabases={availableDatabases}
                 loading={loadingDatabases}

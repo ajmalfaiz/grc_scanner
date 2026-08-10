@@ -17,7 +17,7 @@ vi.mock("@/lib/discovery-scan-client", () => ({
     testDiscoveryConnection(...args),
   listDiscoveryDatabases: (...args: unknown[]) =>
     listDiscoveryDatabases(...args),
-  runDiscoveryScan: vi.fn(),
+  runDiscoveryScanJob: vi.fn(),
 }));
 
 describe("ConnectionDetailsForm", () => {

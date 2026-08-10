@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
+  Clock,
   Loader2,
   RefreshCw,
   Settings2,
@@ -16,8 +17,9 @@ import { EditScopeSheet } from "@/components/discovery/edit-scope-sheet";
 import { RescanCredentialsSheet } from "@/components/discovery/rescan-credentials-sheet";
 import { ScanFindings } from "@/components/discovery/scan-findings";
 import { ScanningScreen } from "@/components/discovery/scanning-screen";
+import { ScheduleScanSheet } from "@/components/discovery/schedule-scan-sheet";
 import { Button } from "@/components/ui/button";
-import { runDiscoveryScan } from "@/lib/discovery-scan-client";
+import { runDiscoveryScanJob } from "@/lib/discovery-scan-client";
 import { supportsLiveDiscovery } from "@/lib/discovery/live";
 import {
   getScanResult,
@@ -35,7 +37,7 @@ import {
 
 const EMPTY: SavedConnection[] = [];
 
-export type SavedEditPanel = "connection" | "scope" | "credentials" | null;
+export type SavedEditPanel = "connection" | "scope" | "credentials" | "schedule" | null;
 
 function toDisplayResult(
   saved: SavedConnection,
@@ -58,19 +60,9 @@ function toDisplayResult(
     };
   }
 
-  // Non-postgres connectors still use mock findings until wired.
-  if (saved.connectorId !== "postgres") {
-    return meta;
-  }
-
-  return {
-    ...meta,
-    scopeValue: 0,
-    findings: [],
-    coverageLine: "No scan results yet — run a scan to discover PII.",
-    methodNote:
-      "Connect with valid credentials and run a scan. Findings are types and locations only.",
-  };
+  // No cached scan yet — every connector's base result starts empty
+  // (no mock/modeled findings anywhere; see discovery-mock-data.ts).
+  return meta;
 }
 
 export function SavedConnectionWorkspace({
@@ -131,7 +123,8 @@ export function SavedConnectionWorkspace({
     connection: SavedConnection,
     connectionValues: Record<string, string>,
   ): Promise<SavedScanResult> {
-    return runDiscoveryScan({
+    // Background job — not bound by a single HTTP request's timeout.
+    return runDiscoveryScanJob({
       connectorId: connection.connectorId,
       connectionValues,
       scopeValues: connection.scopeValues,
@@ -232,6 +225,22 @@ export function SavedConnectionWorkspace({
             <SlidersHorizontal data-icon="inline-start" />
             What to scan
           </Button>
+          {supportsLiveDiscovery(saved.connectorId) ? (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={scanning || !hasUsableStoredSecrets(saved)}
+              title={
+                hasUsableStoredSecrets(saved)
+                  ? undefined
+                  : "Save password/keys in this browser first — a schedule needs to run without you re-entering them"
+              }
+              onClick={() => setPanel("schedule")}
+            >
+              <Clock data-icon="inline-start" />
+              Schedule
+            </Button>
+          ) : null}
           <Button size="sm" disabled={scanning} onClick={requestRescan}>
             {scanning ? (
               <Loader2 data-icon="inline-start" className="animate-spin" />
@@ -307,6 +316,19 @@ export function SavedConnectionWorkspace({
         onRescanned={(next, connectionValues) => {
           void finishRescan(next, connectionValues);
         }}
+      />
+
+      <ScheduleScanSheet
+        open={panel === "schedule"}
+        onOpenChange={(open) => {
+          if (open) setPanel("schedule");
+          else clearPanel();
+        }}
+        connectorId={saved.connectorId}
+        label={saved.label}
+        connectionValues={saved.connectionValues}
+        scopeValues={saved.scopeValues}
+        savedConnectionId={saved.id}
       />
     </div>
   );

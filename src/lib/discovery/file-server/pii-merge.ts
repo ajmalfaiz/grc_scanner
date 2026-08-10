@@ -1,4 +1,5 @@
 import type { DetectionAggregate } from "@/lib/discovery/pii-detectors";
+import type { ConnectorId, DiscoveryAsset } from "@/lib/discovery-mock-data";
 import type {
   CoverageIssue,
   CoverageSummary,
@@ -37,6 +38,8 @@ function riskForCategory(category?: PiiCategory): Finding["riskLevel"] {
 export function mergeFileFindings(
   nameHits: PathTriageHit[],
   contentHits: Map<string, Map<string, ContentFindingAggregate>>,
+  connectorId: ConnectorId = "file-server",
+  assetType: DiscoveryAsset["assetType"] = "file",
 ): Finding[] {
   type Acc = {
     path: string;
@@ -159,8 +162,8 @@ export function mergeFileFindings(
         rawValuesStored: false,
       },
       asset: {
-        connectorId: "file-server",
-        assetType: "file",
+        connectorId,
+        assetType,
         name: item.name,
         path: item.path,
       },

@@ -8,7 +8,7 @@ import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { DiscoveryFieldControl } from "@/components/discovery/discovery-field-control";
 import { ScanningScreen } from "@/components/discovery/scanning-screen";
 import { Button } from "@/components/ui/button";
-import { runDiscoveryScan } from "@/lib/discovery-scan-client";
+import { runDiscoveryScanJob } from "@/lib/discovery-scan-client";
 import { supportsLiveDiscovery } from "@/lib/discovery/live";
 import {
   buildScopeInitialValues,
@@ -119,7 +119,9 @@ export function ScanScopeForm({
       let lastScanResult = undefined;
 
       if (supportsLiveDiscovery(connectorId)) {
-        lastScanResult = await runDiscoveryScan({
+        // Runs as a background job server-side — not bound by a single HTTP
+        // request's timeout, so large/slow sources can complete normally.
+        lastScanResult = await runDiscoveryScanJob({
           connectorId,
           connectionValues: nextConnectionValues,
           scopeValues: values,

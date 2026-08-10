@@ -20,9 +20,10 @@ export const SECRET_FIELD_NAMES = new Set([
   "password",
   "privateKey",
   "passphrase",
-  "accessToken",
-  "clientSecret",
-  "refreshToken",
+  "bearerToken",
+  "apiKeyValue",
+  "basicPassword",
+  "smbPassword",
 ]);
 
 /** Latest scan payload cached on the saved connection (browser only). */
@@ -152,11 +153,20 @@ export function buildConnectionLabel(
   const name = getScanResult(connectorId)?.name ?? connectorId;
   const host = values.host?.trim();
   const databases = describeDatabases(values);
-  const vendor = values.vendor?.trim();
 
-  if (vendor) {
-    const vendorLabel = vendor === "zoho" ? "Zoho" : "HubSpot";
-    return `${name} · ${vendorLabel}`;
+  if (connectorId === "saas" && values.baseUrl) {
+    try {
+      return `${name} · ${new URL(values.baseUrl).host}`;
+    } catch {
+      return `${name} · ${values.baseUrl}`;
+    }
+  }
+  if (connectorId === "email" && values.mailboxes) {
+    return `${name} · ${host ?? "?"} (${values.mailboxes})`;
+  }
+  if (connectorId === "backups") {
+    const sourceHost = values.sourceType === "smb" ? values.smbHost : host;
+    return sourceHost ? `${name} · ${sourceHost}` : `${name} · ${values.basePath ?? "local"}`;
   }
   if (host && databases) return `${name} · ${host} / ${databases}`;
   if (host) return `${name} · ${host}`;
@@ -182,7 +192,26 @@ export function buildConnectionSummary(
   }
   if (values.shareName) parts.push(`share ${values.shareName}`);
   if (values.username) parts.push(`user ${values.username}`);
-  if (values.vendor) parts.push(values.vendor);
+
+  // Generic SaaS/REST connector.
+  if (values.baseUrl) {
+    try {
+      parts.push(new URL(values.baseUrl).host);
+    } catch {
+      parts.push(values.baseUrl);
+    }
+    if (values.authType) parts.push(values.authType);
+  }
+  // Email connector.
+  if (values.mailboxes) parts.push(values.mailboxes);
+  // Backups connector.
+  if (values.sourceType) {
+    parts.push(values.sourceType);
+    if (values.sourceType === "smb" && values.smbHost) parts.push(values.smbHost);
+    if (values.sourceType === "smb" && values.smbUsername) parts.push(`user ${values.smbUsername}`);
+    if (values.basePath) parts.push(values.basePath);
+  }
+
   return parts.length > 0 ? parts.join(" · ") : "Connection configured";
 }
 

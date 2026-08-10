@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import "@/test/next-navigation";
 import { mockPush } from "@/test/next-navigation";
 import { ScanScopeForm } from "@/components/discovery/scan-scope-form";
-import { runDiscoveryScan } from "@/lib/discovery-scan-client";
+import { runDiscoveryScanJob } from "@/lib/discovery-scan-client";
 import {
   listSavedConnections,
   resetSavedConnectionsStoreForTests,
@@ -28,14 +28,14 @@ const scanResult = {
 };
 
 vi.mock("@/lib/discovery-scan-client", () => ({
-  runDiscoveryScan: vi.fn(async () => scanResult),
+  runDiscoveryScanJob: vi.fn(async () => scanResult),
 }));
 
 describe("ScanScopeForm", () => {
   beforeEach(() => {
     resetSavedConnectionsStoreForTests();
     mockPush.mockClear();
-    vi.mocked(runDiscoveryScan).mockResolvedValue(scanResult);
+    vi.mocked(runDiscoveryScanJob).mockResolvedValue(scanResult);
     saveDiscoveryDraft({
       connectorId: "postgres",
       connectionValues: {
@@ -75,7 +75,7 @@ describe("ScanScopeForm", () => {
 
   it("shows an animated scanning screen while the scan is running", async () => {
     const user = userEvent.setup();
-    vi.mocked(runDiscoveryScan).mockImplementationOnce(
+    vi.mocked(runDiscoveryScanJob).mockImplementationOnce(
       () => new Promise(() => {}),
     );
     render(<ScanScopeForm connectorId="postgres" />);
@@ -101,7 +101,7 @@ describe("ScanScopeForm", () => {
         basePath: "/shared",
       },
     });
-    vi.mocked(runDiscoveryScan).mockResolvedValue({
+    vi.mocked(runDiscoveryScanJob).mockResolvedValue({
       ...scanResult,
       scopeLabel: "Files inventoried",
       findings: [
@@ -118,7 +118,7 @@ describe("ScanScopeForm", () => {
     await user.click(screen.getByRole("button", { name: /run scan & save/i }));
 
     await waitFor(() => {
-      expect(runDiscoveryScan).toHaveBeenCalledWith(
+      expect(runDiscoveryScanJob).toHaveBeenCalledWith(
         expect.objectContaining({ connectorId: "file-server" }),
       );
     });

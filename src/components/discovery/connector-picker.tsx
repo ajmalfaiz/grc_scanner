@@ -38,7 +38,7 @@ export function ConnectorPicker() {
           >
             Saved connections
           </Link>
-          . Greyed cards are not available in this prototype.
+          . Every connector below is live — connect a real source to scan it.
         </p>
       </header>
 

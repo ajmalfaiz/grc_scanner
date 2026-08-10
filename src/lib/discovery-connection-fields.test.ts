@@ -21,6 +21,8 @@ describe("discovery connection fields", () => {
       "file-server",
       "server",
       "saas",
+      "email",
+      "backups",
     ]);
   });
 
@@ -98,19 +100,24 @@ describe("discovery connection fields", () => {
     expect(keyVisible).not.toContain("password");
   });
 
-  it("switches SaaS fields between HubSpot and Zoho", () => {
+  it("switches generic SaaS auth fields by authType", () => {
     const fields = getConnectionFields("saas");
-    const hubspot = buildInitialValues(fields);
-    expect(hubspot.vendor).toBe("hubspot");
-    expect(
-      getVisibleFields(fields, hubspot).map((f) => f.name),
-    ).toContain("accessToken");
+    const values = buildInitialValues(fields);
+    expect(values.authType).toBe("bearer");
+    expect(getVisibleFields(fields, values).map((f) => f.name)).toContain(
+      "bearerToken",
+    );
 
-    hubspot.vendor = "zoho";
-    const zohoNames = getVisibleFields(fields, hubspot).map((f) => f.name);
-    expect(zohoNames).toContain("clientId");
-    expect(zohoNames).toContain("refreshToken");
-    expect(zohoNames).not.toContain("accessToken");
+    values.authType = "api_key";
+    const apiKeyNames = getVisibleFields(fields, values).map((f) => f.name);
+    expect(apiKeyNames).toContain("apiKeyValue");
+    expect(apiKeyNames).toContain("apiKeyHeader");
+    expect(apiKeyNames).not.toContain("bearerToken");
+
+    values.authType = "basic";
+    const basicNames = getVisibleFields(fields, values).map((f) => f.name);
+    expect(basicNames).toContain("basicUsername");
+    expect(basicNames).toContain("basicPassword");
   });
 
   it("requires SSH private key when auth method is privateKey", () => {

@@ -16,6 +16,8 @@ export function generateStaticParams() {
     { connector: "file-server" },
     { connector: "server" },
     { connector: "saas" },
+    { connector: "email" },
+    { connector: "backups" },
   ];
 }
 

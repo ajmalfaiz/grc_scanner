@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import "@/test/next-navigation";
 import { mockReplace } from "@/test/next-navigation";
 import { SavedConnectionWorkspace } from "@/components/discovery/saved-connection-workspace";
-import { runDiscoveryScan } from "@/lib/discovery-scan-client";
+import { runDiscoveryScanJob } from "@/lib/discovery-scan-client";
 import {
   resetSavedConnectionsStoreForTests,
   upsertSavedConnection,
@@ -46,14 +46,14 @@ const scanResult = {
 };
 
 vi.mock("@/lib/discovery-scan-client", () => ({
-  runDiscoveryScan: vi.fn(async () => scanResult),
+  runDiscoveryScanJob: vi.fn(async () => scanResult),
 }));
 
 describe("SavedConnectionWorkspace", () => {
   beforeEach(() => {
     resetSavedConnectionsStoreForTests();
     mockReplace.mockClear();
-    vi.mocked(runDiscoveryScan).mockClear();
+    vi.mocked(runDiscoveryScanJob).mockClear();
     vi.useRealTimers();
   });
 
@@ -241,7 +241,7 @@ describe("SavedConnectionWorkspace", () => {
     await user.click(screen.getByRole("button", { name: /^rescan$/i }));
 
     await waitFor(() => {
-      expect(runDiscoveryScan).toHaveBeenCalledWith(
+      expect(runDiscoveryScanJob).toHaveBeenCalledWith(
         expect.objectContaining({
           connectorId: "postgres",
           connectionValues: expect.objectContaining({

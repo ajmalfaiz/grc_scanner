@@ -14,10 +14,7 @@ function headerSubtitle(pathname: string): string {
   if (pathname.startsWith("/discovery/saved")) {
     return "Saved connections";
   }
-  if (pathname.startsWith("/discovery")) {
-    return "Data discovery";
-  }
-  return "Domain-level AI usage findings";
+  return "Data discovery";
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {

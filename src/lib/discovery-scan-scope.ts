@@ -148,6 +148,42 @@ export const scanPipelineByConnector: Record<ConnectorId, PipelineStage[]> = {
       detail: "PII type labels, confidence, and API scope gaps.",
     },
   ],
+  email: [
+    {
+      title: "1. Catalog",
+      detail: "List configured mailboxes and message counts in scope.",
+    },
+    {
+      title: "2. Message fetch",
+      detail: "Fetch recent messages (subject, sender, body, attachments) via IMAP.",
+    },
+    {
+      title: "3. Content sample",
+      detail: "Run local PII detectors on message text and readable attachments.",
+    },
+    {
+      title: "4. Report",
+      detail: "PII type labels, confidence, and mailbox access gaps.",
+    },
+  ],
+  backups: [
+    {
+      title: "1. Inventory",
+      detail: "Walk the source path for backup archives (.zip).",
+    },
+    {
+      title: "2. Archive triage",
+      detail: "Filter by size; skip unreadable/encrypted archives.",
+    },
+    {
+      title: "3. Content sample",
+      detail: "Extract text from archive members; run local PII detectors.",
+    },
+    {
+      title: "4. Report",
+      detail: "PII type labels, confidence, and archive coverage gaps.",
+    },
+  ],
 };
 
 /**
@@ -261,15 +297,6 @@ export const scopeFieldsByConnector: Record<ConnectorId, ScopeField[]> = {
   ],
 
   mysql: [
-    {
-      name: "schemas",
-      label: "Databases to include",
-      type: "text",
-      required: false,
-      placeholder: "app_production, analytics",
-      hint: "Comma-separated. Blank = connected database only.",
-      fullWidth: true,
-    },
     {
       name: "excludeSystemSchemas",
       label: "Exclude system schemas",
@@ -532,50 +559,105 @@ export const scopeFieldsByConnector: Record<ConnectorId, ScopeField[]> = {
 
   saas: [
     {
-      name: "objectTypes",
-      label: "Object types",
+      name: "resultsPath",
+      label: "Results path",
+      type: "text",
+      required: false,
+      placeholder: "data.items",
+      hint: "Dot path to the record array in each response. Blank = auto-detect (array, data, results, items, records, value)",
+      fullWidth: true,
+    },
+    {
+      name: "pagination",
+      label: "Pagination",
       type: "select",
       required: true,
-      defaultValue: "standard",
+      defaultValue: "page_param",
       options: [
-        { value: "contacts", label: "Contacts only" },
-        {
-          value: "standard",
-          label: "Standard set (Contacts, Companies, Deals, Tickets)",
-        },
-        { value: "all", label: "All available object types" },
+        { value: "page_param", label: "Page query parameter" },
+        { value: "cursor", label: "Cursor / next-page token" },
+        { value: "none", label: "None — single page per resource" },
       ],
       fullWidth: true,
     },
     {
+      name: "pageParam",
+      label: "Page parameter name",
+      type: "text",
+      required: false,
+      defaultValue: "page",
+      when: { field: "pagination", equals: "page_param" },
+    },
+    {
+      name: "pageStart",
+      label: "First page number",
+      type: "text",
+      required: false,
+      defaultValue: "1",
+      when: { field: "pagination", equals: "page_param" },
+    },
+    {
+      name: "cursorParam",
+      label: "Cursor parameter name",
+      type: "text",
+      required: false,
+      defaultValue: "cursor",
+      when: { field: "pagination", equals: "cursor" },
+      hint: "Query param the next-page token is sent back as",
+    },
+    {
+      name: "cursorPath",
+      label: "Cursor path in response",
+      type: "text",
+      required: false,
+      placeholder: "meta.next_cursor",
+      when: { field: "pagination", equals: "cursor" },
+      hint: "Dot path to the next-cursor value. Blank = auto-detect (next_cursor, nextPageToken, next, …)",
+    },
+    {
+      name: "maxPages",
+      label: "Max pages per resource",
+      type: "select",
+      required: true,
+      defaultValue: "5",
+      // `when` only supports one field/value pair, and this applies to both
+      // page_param and cursor pagination — shown whenever pagination isn't
+      // "none" is approximated by just always showing it (harmless no-op
+      // when pagination is "none").
+      options: [
+        { value: "1", label: "1 page" },
+        { value: "5", label: "5 pages" },
+        { value: "20", label: "20 pages" },
+      ],
+    },
+    {
       name: "nameTriage",
-      label: "Property name triage",
+      label: "Field name triage",
       type: "select",
       required: true,
       defaultValue: "heuristics_llm",
       options: [
         { value: "heuristics", label: "Heuristics only" },
-        {
-          value: "heuristics_llm",
-          label: "Heuristics + LLM assist on property names",
-        },
+        { value: "heuristics_llm", label: "Heuristics + LLM assist on field names" },
       ],
       fullWidth: true,
     },
     {
-      name: "customProperties",
-      label: "Include custom properties",
+      name: "maxDepth",
+      label: "Max nested field depth",
       type: "select",
       required: true,
-      defaultValue: "yes",
+      defaultValue: "3",
       options: [
-        { value: "yes", label: "Yes" },
-        { value: "no", label: "Standard properties only" },
+        { value: "2", label: "2 levels" },
+        { value: "3", label: "3 levels" },
+        { value: "5", label: "5 levels" },
+        { value: "unlimited", label: "Unlimited" },
       ],
     },
     {
-      name: "objectsPerType",
-      label: "Objects per type (sample)",
+      name: "maxObjectsPerResource",
+      label: "Objects per resource (sample)",
       type: "select",
       required: true,
       defaultValue: "500",
@@ -584,6 +666,88 @@ export const scopeFieldsByConnector: Record<ConnectorId, ScopeField[]> = {
         { value: "100", label: "100 objects" },
         { value: "500", label: "500 objects" },
         { value: "5000", label: "5,000 objects" },
+      ],
+      fullWidth: true,
+    },
+  ],
+
+  email: [
+    {
+      name: "lookbackDays",
+      label: "Lookback window",
+      type: "select",
+      required: true,
+      defaultValue: "90",
+      options: [
+        { value: "30", label: "Last 30 days" },
+        { value: "90", label: "Last 90 days" },
+        { value: "365", label: "Last year" },
+        { value: "all", label: "All messages" },
+      ],
+      fullWidth: true,
+    },
+    {
+      name: "maxMessagesPerMailbox",
+      label: "Messages per mailbox (sample)",
+      type: "select",
+      required: true,
+      defaultValue: "200",
+      when: { field: "coverageMode", equals: "sample" },
+      options: [
+        { value: "50", label: "50 messages" },
+        { value: "200", label: "200 messages" },
+        { value: "1000", label: "1,000 messages" },
+      ],
+    },
+    {
+      name: "includeAttachments",
+      label: "Include attachment text",
+      type: "select",
+      required: true,
+      defaultValue: "yes",
+      options: [
+        { value: "yes", label: "Yes — PDF, DOCX, XLSX, CSV, TXT" },
+        { value: "no", label: "No — message text only" },
+      ],
+    },
+  ],
+
+  backups: [
+    {
+      name: "maxArchiveSizeMb",
+      label: "Max archive size (MB)",
+      type: "select",
+      required: true,
+      defaultValue: "100",
+      options: [
+        { value: "25", label: "25 MB" },
+        { value: "100", label: "100 MB" },
+        { value: "500", label: "500 MB" },
+      ],
+    },
+    {
+      name: "maxArchives",
+      label: "Max archives (sample)",
+      type: "select",
+      required: true,
+      defaultValue: "50",
+      when: { field: "coverageMode", equals: "sample" },
+      options: [
+        { value: "20", label: "20 archives" },
+        { value: "50", label: "50 archives" },
+        { value: "200", label: "200 archives" },
+      ],
+    },
+    {
+      name: "maxEntriesPerArchive",
+      label: "Max entries per archive",
+      type: "select",
+      required: true,
+      defaultValue: "200",
+      options: [
+        { value: "50", label: "50 entries" },
+        { value: "200", label: "200 entries" },
+        { value: "1000", label: "1,000 entries" },
       ],
     },
   ],

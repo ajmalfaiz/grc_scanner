@@ -8,24 +8,22 @@ import {
 } from "@/lib/discovery-mock-data";
 
 describe("discovery mock data", () => {
-  it("exposes six enabled connectors and five disabled", () => {
+  it("exposes eight enabled connectors and no disabled placeholders", () => {
     const enabled = connectorCards.filter((c) => c.enabled);
     const disabled = connectorCards.filter((c) => !c.enabled);
-    expect(enabled).toHaveLength(6);
-    expect(disabled).toHaveLength(5);
+    expect(enabled).toHaveLength(8);
+    expect(disabled).toHaveLength(0);
     expect(enabled.every((c) => c.scanId)).toBe(true);
   });
 
-  it("has scan results for every enabled connector", () => {
+  it("has an empty, real-scan-only result for every enabled connector", () => {
     for (const card of connectorCards.filter((c) => c.enabled)) {
       const result = getScanResult(card.scanId!);
       expect(result).toBeDefined();
-      if (card.scanId === "postgres") {
-        expect(result!.findings).toHaveLength(0);
-        expect(result!.methodNote).toMatch(/live scanner/i);
-      } else {
-        expect(result!.findings.length).toBeGreaterThanOrEqual(4);
-      }
+      // No connector ships mock/modeled findings — every result starts empty
+      // until a live scan runs.
+      expect(result!.findings).toHaveLength(0);
+      expect(result!.methodNote).toMatch(/live scanner/i);
       expect(result!.coverageLine.length).toBeGreaterThan(0);
       expect(result!.methodNote.length).toBeGreaterThan(0);
     }

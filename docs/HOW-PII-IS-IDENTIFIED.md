@@ -2,9 +2,9 @@
 
 This document explains how Jethur Discovery identifies PII: the end-to-end scan flow, how metadata and content evidence are combined, how confidence is assigned, and what is (and is not) stored.
 
-> **Current scope:** Live scanning is implemented for **Postgres**. Other connector screens may show connector-specific modeled results until their live adapters are wired.
+> **Current scope:** Live scanning is implemented for **all eight connectors** — Postgres, MySQL, MongoDB, File server (SMB/SFTP), Server (SSH log/config), SaaS (generic REST API), Email (IMAP), and Backups & archives (zip). No connector shows mock or modeled results.
 >
-> **Scanner / detector versions:** `discovery-postgres-5` / `openredaction-1`
+> **Scanner / detector versions:** `discovery-postgres-5`, `discovery-mysql-1`, `discovery-mongodb-1`, `discovery-file-server-1`, `discovery-server-1`, `discovery-saas-1`, `discovery-email-1`, `discovery-backups-1` / `openredaction-1`
 
 ---
 

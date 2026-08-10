@@ -269,6 +269,83 @@ export function classifyFile(
   return { status: "eligible", file };
 }
 
+/**
+ * Generic variant of {@link classifyFile} for connectors that decide
+ * readability by their own extension allowlist (server logs/configs,
+ * backup archive members) rather than the file-server `fileTypes` enum.
+ */
+export function classifyFileByAllowlist(
+  file: FileEntry,
+  opts: { maxFileSizeMb: string; isAllowed: (ext: string) => boolean },
+): TriageDecision {
+  const ext = file.ext || extensionOf(file.name);
+  const maxBytes = Number(opts.maxFileSizeMb) * 1024 * 1024;
+
+  if (isUnsupportedExtension(ext)) {
+    return {
+      status: "unsupported",
+      file,
+      reason: `Unsupported file type (.${ext || "unknown"})`,
+    };
+  }
+
+  if (!opts.isAllowed(ext)) {
+    return {
+      status: "skipped",
+      file,
+      reason: `File type .${ext || "unknown"} excluded by scope`,
+    };
+  }
+
+  if (file.size > maxBytes) {
+    return {
+      status: "oversized",
+      file,
+      reason: `File exceeds ${opts.maxFileSizeMb} MB size limit`,
+    };
+  }
+
+  return { status: "eligible", file };
+}
+
+/** Generic variant of {@link selectFilesForContent} without the fileTypes enum. */
+export function selectFilesGeneric(
+  eligible: FileEntry[],
+  hits: PathTriageHit[],
+  opts: {
+    coverageMode: "sample" | "full";
+    maxFiles?: string;
+    prefer?: "recent" | "random";
+  },
+): FileEntry[] {
+  const ranked = [...eligible].sort((a, b) => {
+    const scoreDiff = pathTriageScore(b, hits) - pathTriageScore(a, hits);
+    if (scoreDiff !== 0) return scoreDiff;
+    if (opts.prefer === "recent") {
+      return b.mtimeMs - a.mtimeMs;
+    }
+    return 0;
+  });
+
+  if (opts.prefer === "random") {
+    for (let i = ranked.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const scoreI = pathTriageScore(ranked[i], hits);
+      const scoreJ = pathTriageScore(ranked[j], hits);
+      if (scoreI === scoreJ) {
+        [ranked[i], ranked[j]] = [ranked[j], ranked[i]];
+      }
+    }
+  }
+
+  if (opts.coverageMode === "full") {
+    return ranked;
+  }
+
+  const limit = Number(opts.maxFiles ?? "200");
+  return ranked.slice(0, Math.max(1, limit));
+}
+
 export function selectFilesForContent(
   eligible: FileEntry[],
   hits: PathTriageHit[],

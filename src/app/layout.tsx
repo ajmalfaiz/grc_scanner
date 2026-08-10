@@ -21,9 +21,9 @@ const heading = Source_Serif_4({
 });
 
 export const metadata: Metadata = {
-  title: "Jethur AI Governance",
+  title: "Jethur Discovery",
   description:
-    "Domain-level AI usage monitoring prototype — findings, confidence, and coverage gaps.",
+    "PII discovery scanner — connect a real data source, run a live scan, and review findings, confidence, and coverage gaps. No mock data.",
 };
 
 export default function RootLayout({

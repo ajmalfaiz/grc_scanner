@@ -2,7 +2,7 @@
 
 Companion to [How PII Is Identified](./HOW-PII-IS-IDENTIFIED.md). This document focuses on how the scan result is shaped, segregated for review, and shown in the UI.
 
-> **Current scope:** Live scanning is implemented for **Postgres**. Other connectors may show modeled results until live adapters exist.
+> **Current scope:** Live scanning is implemented for **all eight connectors** — Postgres, MySQL, MongoDB, File server (SMB/SFTP), Server (SSH log/config), SaaS (generic REST API), Email (IMAP), and Backups & archives (zip). No connector shows mock or modeled results; every scan result comes from a real connection.
 >
 > For detection mechanics (name triage, OpenRedaction, confidence rules), use the PII identification doc.
 

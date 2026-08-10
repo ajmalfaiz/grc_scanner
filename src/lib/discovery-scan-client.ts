@@ -1,5 +1,5 @@
 import type { ConnectorId, Finding } from "@/lib/discovery-mock-data";
-import { supportsLiveDiscovery } from "@/lib/discovery/live";
+import { supportsDatabasePicker, supportsLiveDiscovery } from "@/lib/discovery/live";
 import type { SavedScanResult } from "@/lib/saved-connections";
 
 export type DiscoveryScanResponse = SavedScanResult;
@@ -18,14 +18,12 @@ export type DiscoveryDatabasesResponse = {
 };
 
 function scanApiPath(connectorId: ConnectorId): string {
-  if (connectorId === "postgres") return "/api/discovery/postgres/scan";
-  if (connectorId === "file-server") return "/api/discovery/file-server/scan";
+  if (supportsLiveDiscovery(connectorId)) return `/api/discovery/${connectorId}/scan`;
   throw new Error(`Live scan is not implemented for ${connectorId}`);
 }
 
 function testApiPath(connectorId: ConnectorId): string {
-  if (connectorId === "postgres") return "/api/discovery/postgres/test";
-  if (connectorId === "file-server") return "/api/discovery/file-server/test";
+  if (supportsLiveDiscovery(connectorId)) return `/api/discovery/${connectorId}/test`;
   throw new Error(`Connection test is not implemented for ${connectorId}`);
 }
 
@@ -73,13 +71,13 @@ export async function listDiscoveryDatabases(input: {
   connectorId: ConnectorId;
   connectionValues: Record<string, string>;
 }): Promise<DiscoveryDatabasesResponse> {
-  if (input.connectorId !== "postgres") {
+  if (!supportsDatabasePicker(input.connectorId)) {
     throw new Error(
       `Listing databases is not implemented for ${input.connectorId}`,
     );
   }
 
-  const res = await fetch("/api/discovery/postgres/databases", {
+  const res = await fetch(`/api/discovery/${input.connectorId}/databases`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -159,4 +157,115 @@ export async function runDiscoveryScan(input: {
     coverageLine: data.coverageLine,
     methodNote: data.methodNote,
   };
+}
+
+export type DiscoveryJobStatus = "queued" | "running" | "completed" | "failed";
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Run a scan as a server-side background job instead of one long-lived HTTP
+ * request — a large source no longer has to finish inside a single request's
+ * timeout window. Starts the job, then polls until it completes or fails.
+ */
+export async function runDiscoveryScanJob(
+  input: {
+    connectorId: ConnectorId;
+    connectionValues: Record<string, string>;
+    scopeValues: Record<string, string>;
+    label?: string;
+  },
+  options?: {
+    onStatus?: (status: DiscoveryJobStatus) => void;
+    pollIntervalMs?: number;
+    signal?: AbortSignal;
+  },
+): Promise<DiscoveryScanResponse> {
+  if (!supportsLiveDiscovery(input.connectorId)) {
+    throw new Error(`Live scan is not implemented for ${input.connectorId}`);
+  }
+
+  const startRes = await fetch("/api/discovery/jobs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      connectorId: input.connectorId,
+      connectionValues: input.connectionValues,
+      scopeValues: input.scopeValues,
+      label: input.label,
+    }),
+    signal: options?.signal,
+  });
+
+  const started = (await startRes.json().catch(() => ({}))) as {
+    jobId?: string;
+    error?: string;
+  };
+  if (!startRes.ok || !started.jobId) {
+    throw new Error(started.error ?? "Could not start scan");
+  }
+
+  const pollIntervalMs = options?.pollIntervalMs ?? 1200;
+
+  while (true) {
+    await sleep(pollIntervalMs);
+    if (options?.signal?.aborted) {
+      throw new Error("Scan cancelled");
+    }
+
+    const pollRes = await fetch(`/api/discovery/jobs/${started.jobId}`, {
+      signal: options?.signal,
+    });
+    const job = (await pollRes.json().catch(() => ({}))) as {
+      status?: DiscoveryJobStatus;
+      error?: string;
+      result?: {
+        scanRun?: SavedScanResult["scanRun"];
+        scopeLabel?: string;
+        scopeValue?: number;
+        findings?: Finding[];
+        coverage?: SavedScanResult["coverage"];
+        coverageIssues?: SavedScanResult["coverageIssues"];
+        coverageLine?: string;
+        methodNote?: string;
+      };
+    };
+
+    if (!pollRes.ok || !job.status) {
+      throw new Error(job.error ?? "Lost track of the running scan");
+    }
+
+    options?.onStatus?.(job.status);
+
+    if (job.status === "failed") {
+      throw new Error(job.error ?? "Scan failed");
+    }
+
+    if (job.status === "completed") {
+      const result = job.result;
+      if (
+        !result ||
+        typeof result.scopeLabel !== "string" ||
+        typeof result.scopeValue !== "number" ||
+        !Array.isArray(result.findings) ||
+        typeof result.coverageLine !== "string" ||
+        typeof result.methodNote !== "string"
+      ) {
+        throw new Error("Unexpected scan response");
+      }
+      return {
+        scanRun: result.scanRun,
+        scopeLabel: result.scopeLabel,
+        scopeValue: result.scopeValue,
+        findings: result.findings,
+        coverage: result.coverage,
+        coverageIssues: result.coverageIssues,
+        coverageLine: result.coverageLine,
+        methodNote: result.methodNote,
+      };
+    }
+    // queued / running — keep polling.
+  }
 }

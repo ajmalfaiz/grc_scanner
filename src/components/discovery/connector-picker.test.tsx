@@ -12,11 +12,12 @@ describe("ConnectorPicker", () => {
     mockPush.mockClear();
   });
 
-  it("renders enabled and disabled connectors", () => {
+  it("renders every connector as live — no disabled placeholders", () => {
     render(<ConnectorPicker />);
     expect(screen.getByRole("heading", { name: /choose a connector/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /postgres/i })).toBeEnabled();
-    expect(screen.getByText("Business apps").closest("[aria-disabled='true']")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /backups/i })).toBeEnabled();
+    expect(document.querySelector("[aria-disabled='true']")).toBeNull();
   });
 
   it("keeps Continue disabled until a connector is selected", async () => {
